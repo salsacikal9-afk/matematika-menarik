@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Game Online</title>
+    <!-- Script Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .hidden { display: none; }
+        h2 { color: #2c3e50; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        p { color: #7f8c8d; margin-bottom: 25px; font-size: 14px; }
+        button { width: 100%; padding: 14px; margin: 10px 0; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 15px; transition: 0.2s; }
+        .btn-guru { background: #4834d4; color: white; }
+        .btn-murid { background: #6ab04c; color: white; }
+        .btn-guru:active, .btn-murid:active { transform: scale(0.98); }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #dcdde1; box-sizing: border-box; font-size: 14px; }
+        .soal-box { background: #f9ca24; padding: 20px; border-radius: 12px; font-weight: bold; margin: 15px 0; color: #2f3542; font-size: 18px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+        #rekap-jawaban { text-align: left; margin-top: 20px; border-top: 2px solid #f1f2f6; padding-top: 15px; }
+        .item-jawab { background: #f1f2f6; padding: 10px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #4834d4; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- HALAMAN AWAL -->
+    <div id="pilih-layar">
+        <h2>MATH GAME</h2>
+        <p>Aplikasi Kuis Matematika Real-time</p>
+        <button class="btn-guru" onclick="cekPasswordGuru()">LOGIN GURU</button>
+        <button class="btn-murid" onclick="gantiLayar('murid')">LOGIN MURID</button>
+    </div>
+
+    <!-- Halaman Guru -->
+    <div id="layar-guru" class="hidden">
+        <h3>Panel Kontrol Guru</h3>
+        <textarea id="input-soal" rows="3" placeholder="Masukkan soal (Contoh: 15 x 4 + 10)"></textarea>
+        <input type="number" id="input-kunci" placeholder="Kunci jawaban">
+        <button class="btn-guru" onclick="kirimKeFirebase()">BAGIKAN SOAL SEKARANG</button>
+        <div id="rekap-jawaban"><b>Hasil Jawaban Murid:</b><br><div id="isi-rekap" style="margin-top:10px;">Belum ada data masuk.</div></div>
+        <button onclick="location.reload()" style="background:#95afc0; color:white; margin-top:20px;">LOGOUT</button>
+    </div>
+
+    <!-- Halaman Murid -->
+    <div id="layar-murid" class="hidden">
+        <h3>Panel Jawaban Murid</h3>
+        <input type="text" id="nama-siswa" placeholder="Ketik nama lengkap Anda">
+        <div class="soal-box" id="teks-soal">Menunggu soal aktif...</div>
+        <input type="number" id="jawaban-siswa" placeholder="Masukkan jawaban">
+        <button class="btn-murid" onclick="jawabKeFirebase()">KIRIM JAWABAN</button>
+        <p id="notif" style="font-weight:bold; margin-top:10px;"></p>
+        <button onclick="location.reload()" style="background:#95afc0; color:white;">KEMBALI</button>
+    </div>
+</div>
+
+<script>
+    // Konfigurasi Firebase Project Salsa
+    const firebaseConfig = {
+        apiKey: "AIzaSyA9VX25JWkL1kU9ai0I0CuDyIPPxyW4GVc",
+        authDomain: "game-matematika-86df1.firebaseapp.com",
+        databaseURL: "https://game-matematika-86df1-default-rtdb.firebaseio.com",
+        projectId: "game-matematika-86df1",
+        storageBucket: "game-matematika-86df1.appspot.com",
+        messagingSenderId: "885558305902",
+        appId: "1:885558305902:web:6c164592fd45c9ef2ab27f"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // FITUR PASSWORD GURU
+    function cekPasswordGuru() {
+        let pass = prompt("Masukkan Password Guru:");
+        if (pass === "1234") { // <--- Ini passwordnya, bisa diganti ganti
+            gantiLayar('guru');
+        } else {
+            alert("Password Salah! Akses Ditolak.");
+        }
+    }
+
+    function gantiLayar(layar) {
+        document.getElementById('pilih-layar').classList.add('hidden');
+        document.getElementById('layar-' + layar).classList.remove('hidden');
+        if(layar === 'murid') dengerinSoal();
+        if(layar === 'guru') dengerinJawaban();
+    }
+
+    function kirimKeFirebase() {
+        const s = document.getElementById('input-soal').value;
+        const k = document.getElementById('input-kunci').value;
+        if(!s || !k) return alert("Soal dan kunci harus diisi!");
+        
+        database.ref('app_game/soal').set({ teks: s, kunci: k });
+        database.ref('app_game/rekap').remove();
+        alert("Soal telah aktif di semua perangkat murid!");
+    }
+
+    function dengerinSoal() {
+        database.ref('app_game/soal/teks').on('value', (snapshot) => {
+            const data = snapshot.val();
+            document.getElementById('teks-soal').innerText = data || "Belum ada soal dari guru.";
+            document.getElementById('notif').innerText = "";
+            document.getElementById('jawaban-siswa').value = "";
+        });
+    }
+
+    function jawabKeFirebase() {
+        const nama = document.getElementById('nama-siswa').value;
+        const jawab = document.getElementById('jawaban-siswa').value;
+        if(!nama || !jawab) return alert("Nama dan jawaban wajib diisi!");
+
+        database.ref('app_game/soal/kunci').once('value', (snapshot) => {
+            const kunci = snapshot.val();
+            const status = (jawab == kunci) ? "Benar ✅" : "Salah ❌";
+            database.ref('app_game/rekap/' + nama).set({ jawaban: jawab, hasil: status });
+            
+            const notif = document.getElementById('notif');
+            notif.innerText = "Jawaban Anda: " + status;
+            notif.style.color = (jawab == kunci) ? "#27ae60" : "#e74c3c";
+        });
+    }
+
+    function dengerinJawaban() {
+        database.ref('app_game/rekap').on('value', (snapshot) => {
+            const data = snapshot.val();
+            let html = "";
+            if(!data) {
+                html = "<small>Belum ada murid yang menjawab...</small>";
+            } else {
+                for(let namaSiswa in data) {
+                    html += `<div class="item-jawab">
+                                <b>${namaSiswa}</b>: ${data[namaSiswa].jawaban} (${data[namaSiswa].hasil})
+                             </div>`;
+                }
+            }
+            document.getElementById('isi-rekap').innerHTML = html;
+        });
+    }
+</script>
+</body>
+</html>
